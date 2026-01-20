@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: promtheus
+  namespace: argocd
+spec:
+  project: default
+  sources:
+  - repoURL: https://prometheus-community.github.io/helm-charts
+    chart: prometheus-community
+    targetRevision: 28.6.0
+    helm:
+      valueFiles:
+        - $values/helm-values/prometheus-values.yaml
+  - repoURL: https://github.com/noah-w24/ml-engineering-cluster.git
+    targetRevision: main
+    ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - Replace=true
