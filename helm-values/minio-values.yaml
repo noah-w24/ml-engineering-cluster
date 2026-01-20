@@ -1,0 +1,45 @@
+mode: standalone
+replicas: 1
+
+existingSecret: minio
+
+persistence:
+  enabled: true
+  size: 10Gi
+  storageClass: "local-path"
+  accessModes:
+    - ReadWriteOnce
+
+resources:
+  requests:
+    memory: 256Mi
+    cpu: 100m
+  limits:
+    memory: 512Mi
+    cpu: 500m
+
+ingress:
+  enabled: true
+  ingressClassName: "nginx"
+  hosts:
+    - minio.group-avgk.dski23a.timebertt.dev
+  tls:
+    - secretName: minio-tls-cert
+      hosts:
+        - minio.group-avgk.dski23a.timebertt.dev
+
+consoleIngress:
+  enabled: true
+  ingressClassName: "nginx"
+  hosts:
+    - console-minio.group-avgk.dski23a.timebertt.dev
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+  tls:
+    - secretName: minio-console-tls-cert
+      hosts:
+        - console-minio.group-avgk.dski23a.timebertt.dev
+
+buckets: []

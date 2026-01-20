@@ -12,8 +12,8 @@ spec:
       targetRevision: 1.19.0
       helm:
         valueFiles:
-          - $values/helm-values/jupyterlab-values.yaml
-    - repoURL: https://github.com/noah-w24/data-engineering-teil-2.git
+          - $values/helm-values/external-dns-values.yaml
+    - repoURL: https://github.com/noah-w24/ml-engineering-cluster.git
       targetRevision: main
       ref: values
 
