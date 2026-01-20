@@ -1,0 +1,6 @@
+crds:
+  # Install the cert-manager CustomResourceDefinitions (CRDs), such as Certificate and Issuer.
+  # Disabled in default values.
+  enabled: true
+global:
+  logLevel: 2

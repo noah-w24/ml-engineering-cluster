@@ -1,0 +1,38 @@
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    email: timebertt@gmail.com
+    privateKeySecretRef:
+      name: letsencrypt-staging
+    # Use the staging server while testing to avoid hitting rate limits.
+    # See https://letsencrypt.org/docs/staging-environment/
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    solvers:
+    - dns01:
+        cloudDNS:
+          project: timebertt-dhbw
+          serviceAccountSecretRef:
+            name: google-clouddns
+            key: service-account.json
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+spec:
+  acme:
+    email: timebertt@gmail.com
+    privateKeySecretRef:
+      name: letsencrypt
+    server: https://acme-v02.api.letsencrypt.org/directory
+    solvers:
+    - dns01:
+        cloudDNS:
+          project: timebertt-dhbw
+          serviceAccountSecretRef:
+            name: google-clouddns
+            key: service-account.json
