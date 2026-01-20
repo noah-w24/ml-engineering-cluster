@@ -7,9 +7,9 @@ spec:
   project: default
 
   sources:
-    - repoURL: oci://quay.io/jetstack/charts
+    - repoURL: https://charts.jetstack.io
       chart: cert-manager
-      targetRevision: 1.19.1
+      targetRevision: v1.19.1
       helm:
         valueFiles:
           - $values/helm-values/cert-manager-values.yaml
