@@ -34,7 +34,7 @@ consoleIngress:
   hosts:
     - console-minio.group-avgk.dski23a.timebertt.dev
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/cluster-issuer: "letsencrypt"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "0"
   tls:
