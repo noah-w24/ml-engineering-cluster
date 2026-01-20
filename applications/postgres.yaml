@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgres
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/noah-w24/ml-engineering-cluster.git
+    path: charts/postgresql
+    targetRevision: main
+    helm:
+      valueFiles:
+        - ../../helm-values/postgres-values.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: data-storage
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

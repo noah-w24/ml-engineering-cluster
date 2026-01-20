@@ -1,0 +1,21 @@
+# postgres-values.yaml
+auth:
+  existingSecret: postgres-admin
+  database: ds_db
+  username: mlops
+  secretKeys:
+    userPasswordKey: postgres-password
+
+primary:
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: local-path
+
+service:
+  type: ClusterIP
+  ports:
+    postgresql: 5432
+
+metrics:
+  enabled: false

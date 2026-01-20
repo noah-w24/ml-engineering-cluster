@@ -1,0 +1,92 @@
+
+hub:
+  db:
+    type: sqlite-pvc
+  config:
+    JupyterHub:
+      authenticator_class: "dummy"
+    DummyAuthenticator:
+      password: ""
+
+proxy:
+  service:
+    type: ClusterIP
+
+singleuser:
+  image:
+    name: ghcr.io/marius2311/jupyterlab-ml
+    tag: "1.0.2"
+
+  storage:
+    type: dynamic
+    dynamic:
+      storageClass: local-path
+
+  cpu:
+    guarantee: 0.5
+    limit: 1
+
+  memory:
+    guarantee: 512M
+    limit: 1G
+
+  extraEnv:
+    AWS_ACCESS_KEY_ID:
+      valueFrom:
+        secretKeyRef:
+          name: minio
+          key: rootUser
+
+    AWS_SECRET_ACCESS_KEY:
+      valueFrom:
+        secretKeyRef:
+          name: minio
+          key: rootPassword
+
+    GIT_USERNAME:
+      valueFrom:
+        secretKeyRef:
+          name: github-git-credentials
+          key: GIT_USERNAME
+
+    GIT_TOKEN:
+      valueFrom:
+        secretKeyRef:
+          name: github-git-credentials
+          key: GIT_TOKEN
+
+    MLFLOW_S3_ENDPOINT_URL: "http://minio.data-storage.svc.cluster.local:9000"
+
+    MLFLOW_TRACKING_URI: "http://mlflow.mlops.svc.cluster.local:5000"
+
+    AWS_DEFAULT_REGION: "us-east-1"
+
+    POSTGRES_HOST: "postgres-postgresql.data-storage.svc.cluster.local"
+    POSTGRES_PORT: "5432"
+    POSTGRES_DB: "ds_db"
+
+    POSTGRES_USER:
+      valueFrom:
+        secretKeyRef:
+          name: postgres-admin
+          key: postgres-user
+
+    POSTGRES_PASSWORD:
+      valueFrom:
+        secretKeyRef:
+          name: postgres-admin
+          key: postgres-password
+
+ingress:
+  enabled: true
+  annotations: 
+    cert-manager.io/cluster-issuer: letsencrypt
+  ingressClassName: nginx
+  hosts: 
+    - jupyterlab.group-avgk.dski23a.timebertt.dev
+  tls: 
+    - hosts:
+        - jupyterlab.group-avgk.dski23a.timebertt.dev
+      secretName: jupyterlab-tls
+
+  
