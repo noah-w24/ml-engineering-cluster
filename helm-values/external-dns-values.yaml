@@ -22,4 +22,4 @@ sources:
 - service
 
 registry: txt
-txtOwnerId: student-qnly # <cluster-name>, e.g., student-abcd
+txtOwnerId: group-avgk # <cluster-name>, e.g., student-abcd
