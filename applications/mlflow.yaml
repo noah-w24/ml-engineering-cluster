@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mlflow
+  namespace: argocd
+spec:
+  project: default
+
+  sources:
+  - repoURL: https://community-charts.github.io/helm-charts
+    chart: mlflow
+    targetRevision: 1.8.1   # example – pin a version
+    helm:
+      valueFiles:
+        - $values/helm-values/mlflow-values.yaml
+  - repoURL: https://github.com/noah-w24/ml-engineering-cluster.git
+    targetRevision: main
+    ref: values
+      # Enable Argo CD Vault Plugin for secret substitution
+      
+
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: mlops
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - Replace=true
