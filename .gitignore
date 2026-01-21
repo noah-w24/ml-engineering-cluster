@@ -2,3 +2,4 @@ cluster-config.sh
 kubeconfig-group-avgk.yaml
 ssh-private-key-group-avgk
 key.json
+age.agekey

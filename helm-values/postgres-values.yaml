@@ -1,10 +1,8 @@
 # postgres-values.yaml
 auth:
-  existingSecret: postgres-admin
   database: ds_db
   username: mlops
-  secretKeys:
-    userPasswordKey: postgres-password
+  postgresPassword: amazing-password
 
 primary:
   persistence:
