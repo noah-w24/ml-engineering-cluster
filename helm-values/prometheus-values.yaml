@@ -45,4 +45,10 @@ prometheus:
       cert-manager.io/cluster-issuer: letsencrypt
 
 crds:
-  enabled: true
+  enabled: false
+
+prometheusOperator:
+  admissionWebhooks:
+    enabled: false
+    patch:
+      enabled: false
