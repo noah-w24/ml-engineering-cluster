@@ -4,3 +4,4 @@ ssh-private-key-group-avgk
 key.json
 age.agekey
 .sops.yaml
+secrets/*
