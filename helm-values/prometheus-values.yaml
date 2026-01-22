@@ -1,57 +1,48 @@
 grafana:
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
   useStatefulSet: true
   persistence:
     enabled: true
   ingress:
-    # Enable ingress for Grafana
     enabled: true
-    # Explicitly select the ingress-nginx controller in case the IngressClass has not been set as default
     ingressClassName: nginx
 
-    # Define the host for Grafana ingress
-    # <sub-domain>.<cluster-name>.dski23a.timebertt.dev
     hosts:
-    - &host grafana.group-avgk.dski23a.timebertt.dev
+    - grafana.group-jofz.dski23a.timebertt.dev
     tls:
     - secretName: grafana-tls
       hosts:
-      - *host
+      - grafana.group-jofz.dski23a.timebertt.dev
 
-    # Enable cert-manager annotations for automatic TLS certificate management
     annotations:
-      cert-manager.io/cluster-issuer: letsencrypt
-
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    
 prometheus:
-  # Customize the Prometheus object created by the helm chart.
   prometheusSpec:
-    # Enable persistent storage for Prometheus.
-    # This is important to retain metrics data across pod restarts and upgrades.
     storageSpec:
       volumeClaimTemplate:
         spec:
           resources:
             requests:
               storage: 20Gi
-
-    # Retain metrics data until the persistent storage is full.
-    # When more metrics data is collected, older data will be deleted to make space for new data.
     retentionSize: 20GiB
-
+      
   ingress:
-    # Enable ingress for Prometheus
     enabled: true
-    # Explicitly select the ingress-nginx controller in case the IngressClass has not been set as default
     ingressClassName: nginx
 
-    # Define the host for Prometheus ingress
-    # <sub-domain>.<cluster-name>.dski23a.timebertt.dev
     hosts:
-    - &host prometheus.group-avgk.dski23a.timebertt.dev
+    - prometheus.group-jofz.dski23a.timebertt.dev
     tls:
     - secretName: prometheus-tls
       hosts:
-      - *host
+      - prometheus.group-jofz.dski23a.timebertt.dev
 
-    # Enable cert-manager annotations for automatic TLS certificate management
     annotations:
-      cert-manager.io/cluster-issuer: letsencrypt
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+crds:
+  enabled: true
