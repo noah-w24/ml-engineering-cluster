@@ -11,14 +11,14 @@ grafana:
     ingressClassName: nginx
 
     hosts:
-    - grafana.group-jofz.dski23a.timebertt.dev
+    - grafana.group-avgk.dski23a.timebertt.dev
     tls:
     - secretName: grafana-tls
       hosts:
-      - grafana.group-jofz.dski23a.timebertt.dev
+      - grafana.group-avgk.dski23a.timebertt.dev
 
     annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-prod
+      cert-manager.io/cluster-issuer: letsencrypt
     
 prometheus:
   prometheusSpec:
@@ -35,14 +35,14 @@ prometheus:
     ingressClassName: nginx
 
     hosts:
-    - prometheus.group-jofz.dski23a.timebertt.dev
+    - prometheus.group-avgk.dski23a.timebertt.dev
     tls:
     - secretName: prometheus-tls
       hosts:
-      - prometheus.group-jofz.dski23a.timebertt.dev
+      - prometheus.group-avgk.dski23a.timebertt.dev
 
     annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-prod
+      cert-manager.io/cluster-issuer: letsencrypt
 
 crds:
   enabled: true
