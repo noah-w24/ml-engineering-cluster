@@ -2,6 +2,7 @@ cluster-config.sh
 kubeconfig-group-avgk.yaml
 ssh-private-key-group-avgk
 key.json
-age.agekey
-.sops.yaml
-secrets/*
+secrets/data-storage/*-pure.yaml
+secrets/mlops/*-pure.yaml
+secrets/python-ide/*-pure.yaml
+sealed-secrets.crt
