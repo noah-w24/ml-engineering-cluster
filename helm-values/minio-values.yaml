@@ -1,7 +1,9 @@
 mode: standalone
 replicas: 1
 
-existingSecret: minio
+#existingSecret: minio
+rootUser: "admin"
+rootPassword: "12345678"
 
 persistence:
   enabled: true
