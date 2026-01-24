@@ -16,10 +16,6 @@
   "kubernetes": {
     "managerFilePatterns": ["/\\.yaml$/"]
   },
-  "flux": {
-      "managerFilePatterns": [
-    "/(?:^|/)gotk-components\\.ya?ml$/"
-  ]},
   "helm-values":{
   "commitMessageTopic": "helm values {{depName}}",
   "managerFilePatterns": [
