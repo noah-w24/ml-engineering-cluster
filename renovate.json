@@ -1,6 +1,30 @@
 {
+  "automerge": true,
+  "automergeType": "pr",
+  "platformAutomerge": false,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true,
+    "automergeType": "pr",
+    "platformAutomerge": false
+  },
+  "ignoreTests": true,
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
-  ]
+  ],
+  "kubernetes": {
+    "managerFilePatterns": ["/\\.yaml$/"]
+  },
+  "flux": {
+      "managerFilePatterns": [
+    "/(?:^|/)gotk-components\\.ya?ml$/"
+  ]},
+  "helm-values":{
+  "commitMessageTopic": "helm values {{depName}}",
+  "managerFilePatterns": [
+    "/(^|/)values\\.ya?ml$/"
+  ],
+  "pinDigests": false
+}
 }
