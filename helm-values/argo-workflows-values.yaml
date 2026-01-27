@@ -1,0 +1,88 @@
+# -----------------------------
+# Core controller configuration
+# -----------------------------
+controller:
+  replicas: 1
+
+  workflowNamespaces:
+    - argo-workflows
+
+  metricsConfig:
+    enabled: true
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+
+# -----------------------------
+# Server (UI + API)
+# -----------------------------
+server:
+  authMode: server
+  secure: false
+  enabled: true
+
+  service:
+    type: ClusterIP
+    port: 2746
+
+  ingress:
+    # -- Enable an ingress resource
+    enabled: true
+    # -- Additional ingress annotations
+    annotations: 
+      cert-manager.io/cluster-issuer: letsencrypt
+      kubernetes.io/backend-protocol: "HTTP"
+      kubernetes.io/use-forwarded-headers: "true"
+      kubernetes.io/proxy-read-timeout: "3600"
+      kubernetes.io/proxy-send-timeout: "3600"
+      kubernetes.io/ssl-redirect: "true"
+
+
+    # -- Defines which ingress controller will implement the resource
+    ingressClassName: "nginx"
+
+    hosts:
+      - argoworkflows.group-avgk.dski23a.timebertt.dev
+
+    tls: 
+      - secretName: argoworkflows-tls
+        hosts:
+          - argoworkflows.group-avgk.dski23a.timebertt.dev
+        
+
+# -----------------------------
+# Artifact Repository (MinIO)
+# -----------------------------
+artifactRepository:
+  s3:
+    endpoint: minio.data-storage.svc.cluster.local:9000
+    bucket: argo-artifacts
+    insecure: true
+    accessKeySecret:
+      name: minio
+      key: root-user
+    secretKeySecret:
+      name: minio
+      key: root-password
+
+# -----------------------------
+# Workflow defaults
+# -----------------------------
+workflow:
+  serviceAccount:
+    create: true
+    name: argo-workflow
+
+# -----------------------------
+# RBAC
+# -----------------------------
+rbac:
+  create: true
+
+# -----------------------------
+# Pod garbage collection
+# -----------------------------
+podGC:
+  enabled: true
+  strategy: OnWorkflowCompletion
