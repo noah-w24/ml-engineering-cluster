@@ -13,7 +13,6 @@ spec:
     helm:
       valueFiles:
         - $values/helm-values/argo-workflows-values.yaml
-      timeout: 200
   - repoURL: https://github.com/noah-w24/ml-engineering-cluster.git
     targetRevision: main
     ref: values
