@@ -61,10 +61,10 @@ artifactRepository:
     insecure: true
     accessKeySecret:
       name: minio
-      key: root-user
+      key: rootUser
     secretKeySecret:
       name: minio
-      key: root-password
+      key: rootPassword
 
 # -----------------------------
 # Workflow defaults
