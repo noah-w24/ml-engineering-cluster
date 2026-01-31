@@ -26,8 +26,14 @@ spec:
             - name: MLFLOW_S3_ENDPOINT_URL
               value: {{ .Values.env.MLFLOW_S3_ENDPOINT_URL | quote }}
             - name: AWS_ACCESS_KEY_ID
-              value: {{ .Values.env.AWS_ACCESS_KEY_ID | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: minio
+                  key: rootUser
             - name: AWS_SECRET_ACCESS_KEY
-              value: {{ .Values.env.AWS_SECRET_ACCESS_KEY | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: minio
+                  key: rootPassword
           resources:
             {{- toYaml .Values.resources | nindent 12 }}

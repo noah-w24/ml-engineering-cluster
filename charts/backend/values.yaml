@@ -18,7 +18,7 @@ ingress:
           pathType: ImplementationSpecific
 
 env:
-  MLFLOW_S3_ENDPOINT_URL: "http://minio.mlops.svc:9000"
+  MLFLOW_S3_ENDPOINT_URL: "http://minio.data-storage.svc:9000"
   # Default credentials, better to override in values.yaml with specific keys if needed
   AWS_ACCESS_KEY_ID: "minio"
   AWS_SECRET_ACCESS_KEY: "minio123"
