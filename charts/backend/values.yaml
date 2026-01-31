@@ -1,0 +1,26 @@
+image:
+  repository: silasschroeder/violence-detection-backend
+  pullPolicy: IfNotPresent
+  tag: "0.2"
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+    - host: backend.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+
+env:
+  MLFLOW_S3_ENDPOINT_URL: "http://minio.mlops.svc:9000"
+  # Default credentials, better to override in values.yaml with specific keys if needed
+  AWS_ACCESS_KEY_ID: "minio"
+  AWS_SECRET_ACCESS_KEY: "minio123"
+
+resources: {}

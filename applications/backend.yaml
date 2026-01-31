@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: backend
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/noah-w24/ml-engineering-cluster.git
+    targetRevision: main
+    path: charts/backend
+    helm:
+      valueFiles:
+        - ../../helm-values/backend-values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: frontend
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
