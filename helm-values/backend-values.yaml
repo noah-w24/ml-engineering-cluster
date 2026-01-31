@@ -15,7 +15,7 @@ ingress:
         - backend.group-avgk.dski23a.timebertt.dev
 
 env:
-  MLFLOW_S3_ENDPOINT_URL: "http://minio.mlops.svc:9000"
+  MLFLOW_S3_ENDPOINT_URL: "http://minio.data-storage.svc:9000"
   # Assuming default credentials for now, update if your minio secret differs
   AWS_ACCESS_KEY_ID: "rootUser"
   AWS_SECRET_ACCESS_KEY: "rootPassword"
