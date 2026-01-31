@@ -49,11 +49,60 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  detectBtn.addEventListener("click", () => {
-    const text = textarea.value;
-    console.log("Submitting for violence detection:", text);
+  detectBtn.addEventListener('click', async () => {
+        const text = textarea.value;
+        const resultArea = document.getElementById('result-area');
+        
+        // Indicate loading
+        detectBtn.disabled = true;
+        detectBtn.textContent = "Analyzing...";
+        resultArea.classList.add('hidden');
+        resultArea.innerHTML = '';
 
-    // Logic to call the API will go here
-    alert(`Submit logic to be implemented.\n\nText: "${text}"`);
-  });
+        try {
+            const response = await fetch('https://backend.group-avgk.dski23a.timebertt.dev/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ text: text })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            
+            // Display Results
+            resultArea.classList.remove('hidden');
+            
+            if (data.predictions && data.predictions.length > 0) {
+                let html = '<h3>Analysis Results</h3><div class="results-grid">';
+                data.predictions.forEach(p => {
+                    const isViolent = p.prediction === '1' || p.prediction === 'violent' || p.prediction === 'True';
+                    const colorClass = isViolent ? 'violent' : 'safe';
+                    html += `
+                        <div class="result-card ${colorClass}">
+                            <div class="model-name">${p.model_name}</div>
+                            <div class="prediction">${isViolent ? 'VIOLENT' : 'NON-VIOLENT'}</div>
+                            <div class="confidence">Confidence: ${(p.confidence * 100).toFixed(1)}%</div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                resultArea.innerHTML = html;
+            } else {
+                resultArea.innerHTML = '<p>No predictions returned.</p>';
+            }
+
+        } catch (error) {
+            console.error('Error:', error);
+            resultArea.classList.remove('hidden');
+            resultArea.innerHTML = `<p style="color: var(--danger-color)">Error analyzing text: ${error.message}</p>`;
+        } finally {
+            detectBtn.disabled = false;
+            detectBtn.textContent = "Detect Violence";
+        }
+    });
 });
