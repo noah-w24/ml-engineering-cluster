@@ -84,7 +84,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     const colorClass = isViolent ? 'violent' : 'safe';
                     html += `
                         <div class="result-card ${colorClass}">
-                            <div class="model-name">${p.model_name}</div>
+                            <div class="model-name">${p.model_name.length > 8 ? p.model_name.substring(0, 8) + '...' : p.model_name}</div>
                             <div class="prediction">${isViolent ? 'VIOLENT' : 'NON-VIOLENT'}</div>
                             <div class="confidence">Confidence: ${(p.confidence * 100).toFixed(1)}%</div>
                         </div>
