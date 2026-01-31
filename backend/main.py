@@ -103,21 +103,20 @@ def load_models():
             model_name = model_dir.strip('/').split('/')[-1] # e.g. m-46557...
             
             # Construct S3 URI for MLflow
-            # mlflow.sklearn.load_model expects the directory containing MLmodel
-            # Based on user input, path is: .../models/m-hash/artifacts/model/
-            # But usually MLflow logs artifacts in a specific way.
-            # If the user sees MLmodel inside `.../artifacts/model`, then that's the path.
-            # wait, the user said: "mlflow-artifacts/9/models/m-hash/artifacts/MLmodel"
-            # AND "Within this folder there are multiple files: MLmodel, model.pkl..."
-            # This implies the folder structure is:
-            # bucket/exp_id/models/m-hash/artifacts/
-            # AND `artifacts` acts as the model root.
+            # Error log shows: "failures occurred while downloading... artifacts from s3://.../artifacts"
+            # And "File model ... Not Found"
+            # This means it's looking for a FOLDER named "model" inside the path we gave it.
+            # But the user said: ".../artifacts/MLmodel"
+            # This means the folder we are pointing to IS the model folder.
             
-            # Since MLflow logs to `artifact_path="model"`, it is likely:
-            # bucket/exp_id/models/m-hash/artifacts/model
+            # Previous attempt: model_uri = f"s3://{BUCKET_NAME}/{model_dir}artifacts/model"
+            # That caused it to look for bucket/.../artifacts/model/MLmodel
             
-            # Let's try appending "artifacts/model" first which is standard for log_model(artifact_path="model")
-            model_uri = f"s3://{BUCKET_NAME}/{model_dir}artifacts/model"
+            # The error "File model ... Not Found" suggests that mlflow is treating the last part of the path as the artifact name.
+            # BUT wait, the user confirmed: ".../artifacts/MLmodel" exists directly inside `artifacts`.
+            
+            # So the correct "model uri" (the folder containing MLmodel) is just .../artifacts
+            model_uri = f"s3://{BUCKET_NAME}/{model_dir}artifacts"
             
             try:
                 logger.info(f"Loading model from {model_uri}")
