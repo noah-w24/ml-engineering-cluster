@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-issuer
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/noah-w24/ml-engineering-cluster.git
+    targetRevision: main
+    path: cluster-issuer
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
