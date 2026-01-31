@@ -2,14 +2,17 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "backend.fullname" . }}
-  labels: {{ - include "backend.labels" . | nindent 4 }}
+  labels:
+    {{- include "backend.labels" . | nindent 4 }}
 spec:
   replicas: 1
   selector:
-    matchLabels: {{ - include "backend.selectorLabels" . | nindent 6 }}
+    matchLabels:
+      {{- include "backend.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      labels: {{ - include "backend.selectorLabels" . | nindent 8 }}
+      labels:
+        {{- include "backend.selectorLabels" . | nindent 8 }}
     spec:
       containers:
         - name: {{ .Chart.Name }}
@@ -26,4 +29,5 @@ spec:
               value: {{ .Values.env.AWS_ACCESS_KEY_ID | quote }}
             - name: AWS_SECRET_ACCESS_KEY
               value: {{ .Values.env.AWS_SECRET_ACCESS_KEY | quote }}
-          resources: {{ - toYaml .Values.resources | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
