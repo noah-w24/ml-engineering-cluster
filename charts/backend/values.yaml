@@ -1,7 +1,7 @@
 image:
   repository: silasschroeder/violence-detection-backend
   pullPolicy: IfNotPresent
-  tag: "0.2"
+  tag: "0.3"
 
 service:
   type: ClusterIP
