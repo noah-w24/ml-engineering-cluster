@@ -1,4 +1,3 @@
-
 hub:
   db:
     type: sqlite-pvc
@@ -13,6 +12,12 @@ proxy:
     type: ClusterIP
 
 singleuser:
+  networkPolicy:
+    egress:
+      # Allow all egress traffic (including to other internal namespaces)
+      - to:
+          - ipBlock:
+              cidr: 0.0.0.0/0
   image:
     name: ghcr.io/marius2311/jupyterlab-ml
     tag: "1.0.2"
@@ -79,14 +84,12 @@ singleuser:
 
 ingress:
   enabled: true
-  annotations: 
+  annotations:
     cert-manager.io/cluster-issuer: letsencrypt
   ingressClassName: nginx
-  hosts: 
+  hosts:
     - jupyterlab.group-avgk.dski23a.timebertt.dev
-  tls: 
+  tls:
     - hosts:
         - jupyterlab.group-avgk.dski23a.timebertt.dev
       secretName: jupyterlab-tls
-
-  
