@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Violence Detection</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="results.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Content Safety Check</h1>
+      </header>
+
+      <main class="tweet-composer">
+        <div class="avatar-column">
+          <img src="avatar.jpg" class="avatar" alt="User Avatar" />
+        </div>
+        <div class="input-column">
+          <div class="input-area">
+            <textarea
+              id="tweet-text"
+              placeholder="What is happening?!"
+              maxlength="280"
+            ></textarea>
+          </div>
+
+          <div class="toolbar">
+            <div class="toolbar-left">
+              <!-- Icons removed for minimalism -->
+            </div>
+            <div class="toolbar-right">
+              <div class="char-counter-container">
+                <span id="char-count">0</span>
+                <span class="limit">/ 280</span>
+                <svg class="progress-ring" width="24" height="24">
+                  <circle
+                    class="progress-ring__circle"
+                    stroke="#1d9bf0"
+                    stroke-width="2"
+                    fill="transparent"
+                    r="8"
+                    cx="12"
+                    cy="12"
+                  />
+                </svg>
+              </div>
+              <button id="detect-btn" class="tweet-btn" disabled>
+                Detect Violence
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <div id="result-area" class="result-area hidden">
+        <!-- Results will be displayed here -->
+      </div>
+    </div>
+    <script src="script.js"></script>
+  </body>
+</html>

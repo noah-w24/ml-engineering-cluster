@@ -1,0 +1,15 @@
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: frontend.group-avgk.dski23a.timebertt.dev
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls:
+    - secretName: frontend-tls
+      hosts:
+        - frontend.group-avgk.dski23a.timebertt.dev

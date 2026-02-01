@@ -1,0 +1,7 @@
+fastapi==0.128.0
+uvicorn==0.40.0
+boto3==1.42.39
+mlflow==3.9.0
+scikit-learn==1.8.0
+pandas==3.0.0
+python-multipart

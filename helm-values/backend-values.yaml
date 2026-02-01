@@ -1,0 +1,21 @@
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: backend.group-avgk.dski23a.timebertt.dev
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls:
+    - secretName: backend-tls
+      hosts:
+        - backend.group-avgk.dski23a.timebertt.dev
+
+env:
+  MLFLOW_S3_ENDPOINT_URL: "http://minio.data-storage.svc:9000"
+  # Assuming default credentials for now, update if your minio secret differs
+  AWS_ACCESS_KEY_ID: "rootUser"
+  AWS_SECRET_ACCESS_KEY: "rootPassword"

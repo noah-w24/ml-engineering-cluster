@@ -1,0 +1,54 @@
+.results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.result-card {
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05); /* slightly lighter than bg */
+  border: 1px solid var(--border-color);
+  text-align: center;
+}
+
+.result-card.violent {
+  border-color: var(--danger-color);
+  background: rgba(244, 33, 46, 0.1);
+}
+
+.result-card.safe {
+  border-color: #00ba7c; /* Twitter green */
+  background: rgba(0, 186, 124, 0.1);
+}
+
+.model-name {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--placeholder-color);
+  margin-bottom: 4px;
+}
+
+.prediction {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.result-card.violent .prediction {
+  color: var(--danger-color);
+}
+.result-card.safe .prediction {
+  color: #00ba7c;
+}
+
+.confidence {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+h3 {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
