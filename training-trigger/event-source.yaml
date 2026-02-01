@@ -2,41 +2,25 @@ apiVersion: argoproj.io/v1alpha1
 kind: EventSource
 metadata:
   name: minio-input-eventsource
-  labels:
-    app: argo-events
-  spec:
-  # optional: the port the eventsource server will listen on
+  namespace: argo-events
+spec:
+  template:
   service:
     ports:
       - port: 12000
         targetPort: 12000
 
- # S3/MinIO event source configuration
-  s3:
-    minio:
-      # name identifies this particular s3 source inside the EventSource
-      bucket: input-data
-      # listen to object creation events
+  minio:
+    input:                      # 👈 eventName
+      bucket:
+        name: input-data
+      endpoint: minio.data-storage.svc.cluster.local:9000
       events:
         - s3:ObjectCreated:*
-      # optional prefix / suffix filters (empty = no filter)
-      filter:
-        prefix: ""
-        suffix: ""
-      # MinIO endpoint (cluster DNS). Adjust if your minio service name/port differ.
-      endpoint: http://minio:9000
-      # region can be any string for MinIO; used by the S3 client
-      region: minio
-      # set to true for http/non-TLS MinIO endpoints
       insecure: true
-      # Credentials are read from a Kubernetes Secret. Create this secret yourself.
-      # Example secret name: `minio-credentials` with keys `accesskey` and `secretkey`.
       accessKey:
         name: minio
         key: rootUser
       secretKey:
         name: minio
         key: rootPassword
-
-  # You can add additional s3 sources here if needed.
-

@@ -1,0 +1,49 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: minio-train-sensor
+  namespace: argo-events
+spec:
+  template:
+    serviceAccountName: argo-events-sa
+  dependencies:
+    - name: minio-dep
+      eventSourceName: minio-input-eventsource
+      eventName: input               # ✅ must match EventSource
+      filters:
+        data:
+          - path: notification.0.s3.object.key
+            type: string
+            value:
+              - ".*train.*\\.csv$"
+            comparator: "="        # ✅ required for regex
+
+  triggers:
+    - template:
+        name: trigger-workflow
+        k8s:
+          group: argoproj.io
+          version: v1alpha1
+          resource: workflows
+          namespace: argo-workflows
+          operation: create
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                generateName: train-workflow-
+                namespace: argo-workflows
+              spec:
+                entrypoint: pipeline
+                arguments:
+                  parameters:
+                    - name: input-object
+                      value: ""
+                workflowTemplateRef:
+                  name: ml-pipeline-template
+          parameters:
+            - src:
+                dependencyName: minio-dep
+                dataKey: notification.0.s3.object.key
+              dest: spec.arguments.parameters.0.value
