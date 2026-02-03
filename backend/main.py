@@ -218,12 +218,19 @@ async def predict(request: TweetRequest):
         try:
             logger.info(f"Predicting with model {name}")
             
-            # Determine if this is an end-to-end pipeline with preprocessing or just a classifier
-            # Final-models have a 'preprocessing' step in the pipeline
-            is_final_model = (
-                hasattr(model, 'named_steps') and 
-                'preprocessing' in model.named_steps
-            )
+            # Determine if this is an end-to-end pipeline with preprocessing
+            # Final-models are Pipelines with a 'preprocessing' step
+            # Fallback models are either ThresholdedModel wrappers or raw classifiers
+            is_final_model = False
+            
+            # Check if it's a Pipeline with 'preprocessing' step
+            if hasattr(model, 'named_steps') and 'preprocessing' in model.named_steps:
+                is_final_model = True
+            # Also check if it has a base_model attribute (ThresholdedModel wrapper)
+            elif hasattr(model, 'base_model'):
+                base = model.base_model
+                if hasattr(base, 'named_steps') and 'preprocessing' in base.named_steps:
+                    is_final_model = True
             
             if is_final_model:
                 # End-to-end pipeline: pass raw text directly
