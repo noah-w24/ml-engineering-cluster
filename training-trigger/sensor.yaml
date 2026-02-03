@@ -41,7 +41,7 @@ spec:
                     - name: input-object
                       value: ""
                 workflowTemplateRef:
-                  name: ml-pipeline-template
+                  name: ml-pipeline-template-v6
           parameters:
             - src:
                 dependencyName: minio-dep
