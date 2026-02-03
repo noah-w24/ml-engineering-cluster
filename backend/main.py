@@ -159,7 +159,24 @@ def load_resources():
                 try:
                     logger.info(f"Loading fallback model {cand['name']}")
                     model = mlflow.sklearn.load_model(cand['uri'])
-                    new_loaded_models[cand['name']] = model
+                    
+                    # Validate that the model is fitted by trying a dummy prediction
+                    try:
+                        # Try to check if model is fitted
+                        from sklearn.utils.validation import check_is_fitted
+                        if hasattr(model, 'named_steps'):
+                            # Check the last step of the pipeline
+                            check_is_fitted(list(model.named_steps.values())[-1])
+                        elif hasattr(model, 'base_model'):
+                            # For ThresholdedModel, check the base_model
+                            check_is_fitted(model.base_model)
+                        else:
+                            check_is_fitted(model)
+                        
+                        new_loaded_models[cand['name']] = model
+                        logger.info(f"Successfully loaded and validated fallback model {cand['name']}")
+                    except Exception as fit_err:
+                        logger.warning(f"Model {cand['name']} loaded but not fitted, skipping: {fit_err}")
                 except Exception as e:
                     logger.error(f"Failed to load fallback model {cand['name']}: {e}")
             
