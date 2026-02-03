@@ -23,7 +23,7 @@ from preprocessing import (
 )
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Violence Detection API")
@@ -199,23 +199,35 @@ def preprocess_text(text: str) -> pd.DataFrame:
     - profanity features (3): profane_count, profane_ratio, has_profane
     - punctuation_rate (1): ratio of punctuation to total characters
     """
-    from preprocessing import ProfanityLexiconFeaturizer, punctuation_length_rate_transform
-    
-    # Start with raw text in a DataFrame
-    df = pd.DataFrame({"text": [text]})
-    
-    # Apply profanity featurizer (outputs 3 features)
-    profanity_featurizer = ProfanityLexiconFeaturizer()
-    profanity_features = profanity_featurizer.transform(df)
-    
-    # Apply punctuation rate transform (outputs 1 feature)
-    punct_features = punctuation_length_rate_transform(df)
-    
-    # Combine all features into one array
-    features = np.concatenate([profanity_features, punct_features], axis=1)
-    
-    # Return as DataFrame (with column names for clarity, though not required)
-    return pd.DataFrame(features, columns=["profane_count", "profane_ratio", "has_profane", "punctuation_rate"])
+    try:
+        from preprocessing import ProfanityLexiconFeaturizer, punctuation_length_rate_transform
+        
+        # Start with raw text in a DataFrame
+        df = pd.DataFrame({"text": [text]})
+        logger.debug(f"Input DataFrame shape: {df.shape}, columns: {df.columns.tolist()}")
+        
+        # Apply profanity featurizer (outputs 3 features)
+        profanity_featurizer = ProfanityLexiconFeaturizer()
+        logger.debug("Applying profanity featurizer...")
+        profanity_features = profanity_featurizer.transform(df)
+        logger.debug(f"Profanity features shape: {profanity_features.shape}")
+        
+        # Apply punctuation rate transform (outputs 1 feature)
+        logger.debug("Applying punctuation rate transform...")
+        punct_features = punctuation_length_rate_transform(df)
+        logger.debug(f"Punctuation features shape: {punct_features.shape}")
+        
+        # Combine all features into one array
+        features = np.concatenate([profanity_features, punct_features], axis=1)
+        logger.debug(f"Combined features shape: {features.shape}")
+        
+        # Return as DataFrame (with column names for clarity, though not required)
+        result = pd.DataFrame(features, columns=["profane_count", "profane_ratio", "has_profane", "punctuation_rate"])
+        logger.debug(f"Result DataFrame shape: {result.shape}")
+        return result
+    except Exception as e:
+        logger.error(f"Error in preprocess_text: {e}", exc_info=True)
+        raise
 
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(request: TweetRequest):
