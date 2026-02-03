@@ -218,6 +218,11 @@ async def predict(request: TweetRequest):
         try:
             logger.info(f"Predicting with model {name}")
             
+            # Debug: log model type and attributes
+            logger.info(f"Model type: {type(model)}, has named_steps: {hasattr(model, 'named_steps')}, has base_model: {hasattr(model, 'base_model')}")
+            if hasattr(model, 'named_steps'):
+                logger.info(f"Named steps: {list(model.named_steps.keys())}")
+            
             # Determine if this is an end-to-end pipeline with preprocessing
             # Final-models are Pipelines with a 'preprocessing' step
             # Fallback models are either ThresholdedModel wrappers or raw classifiers
@@ -226,11 +231,19 @@ async def predict(request: TweetRequest):
             # Check if it's a Pipeline with 'preprocessing' step
             if hasattr(model, 'named_steps') and 'preprocessing' in model.named_steps:
                 is_final_model = True
+                logger.info(f"Detected as final-model: has preprocessing step")
             # Also check if it has a base_model attribute (ThresholdedModel wrapper)
             elif hasattr(model, 'base_model'):
                 base = model.base_model
-                if hasattr(base, 'named_steps') and 'preprocessing' in base.named_steps:
-                    is_final_model = True
+                logger.info(f"Has base_model, checking base: {type(base)}, has named_steps: {hasattr(base, 'named_steps')}")
+                if hasattr(base, 'named_steps'):
+                    logger.info(f"Base named steps: {list(base.named_steps.keys())}")
+                    if 'preprocessing' in base.named_steps:
+                        is_final_model = True
+                        logger.info(f"Detected as final-model: base has preprocessing step")
+            
+            if not is_final_model:
+                logger.info(f"Detected as fallback model: will preprocess text")
             
             if is_final_model:
                 # End-to-end pipeline: pass raw text directly
