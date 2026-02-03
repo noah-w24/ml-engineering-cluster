@@ -8,3 +8,4 @@ secrets/python-ide/*-pure.yaml
 sealed-secrets.crt
 secrets/argo-workflows/*-pure.yaml
 secrets/frontend/*-pure.yaml
+backend/requirements.txt
