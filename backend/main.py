@@ -61,32 +61,29 @@ class ModelPrediction(BaseModel):
 class PredictionResponse(BaseModel):
     predictions: List[ModelPrediction]
 
-class PredictionResponse(BaseModel):
-    predictions: List[ModelPrediction]
-
 loaded_models = {}
-preprocessor = None
 last_loaded_time = 0
 RELOAD_INTERVAL = 300  # Default 5 minutes, but logic will check on request
 
 def load_resources():
     """
-    Loads models and preprocessor from S3.
+    Loads end-to-end model pipelines from S3.
+    Each pipeline includes preprocessing + classifier, so raw text can be passed directly.
+    Looks for 'final-model' artifacts in the latest experiment runs.
     """
-    global loaded_models, preprocessor, last_loaded_time
+    global loaded_models, last_loaded_time
     
-    # 1. Load Models (Last 3 modified in 11/models/)
-    models_prefix = "11/models/"
-    logger.info(f"Looking for models in {models_prefix}")
+    logger.info("Looking for final-model pipelines in experiment 11/")
 
     try:
-        # We need to find the last 3 modified folders.
-        # S3 does not give timestamps for folders (CommonPrefixes).
-        # We must look for a specific file inside to determine the "modification time" of the model.
-        # We'll look for 'artifacts/MLmodel' inside each prefix.
+        # Tell MLflow how to connect to S3
+        os.environ["MLFLOW_S3_ENDPOINT_URL"] = MINIO_ENDPOINT
+        os.environ["AWS_ACCESS_KEY_ID"] = ACCESS_KEY
+        os.environ["AWS_SECRET_ACCESS_KEY"] = SECRET_KEY
         
+        # Scan for 'final-model/MLmodel' artifacts in all runs under experiment 11/
         paginator = s3_client.get_paginator('list_objects_v2')
-        pages = paginator.paginate(Bucket=BUCKET_NAME, Prefix=models_prefix)
+        pages = paginator.paginate(Bucket=BUCKET_NAME, Prefix="11/")
         
         candidates = []
         
@@ -96,106 +93,79 @@ def load_resources():
             
             for obj in page['Contents']:
                 key = obj['Key']
-                # Check if this object is the 'MLmodel' file
-                if key.endswith('/artifacts/MLmodel'):
-                    # The key structure is assumed to be: 11/models/<model_id>/artifacts/MLmodel
-                    # We want to extract the model_id (folder name) and the timestamp
-                    
-                    # Split path
+                # Look for final-model artifacts: 11/<run_id>/final-model/MLmodel
+                if 'final-model' in key and key.endswith('/MLmodel'):
+                    # Extract run_id: 11/<run_id>/final-model/MLmodel
                     parts = key.split('/')
-                    # parts: ['11', 'models', 'm-xxxxx', 'artifacts', 'MLmodel']
-                    # We need enough parts
-                    if len(parts) >= 5:
-                        model_name = parts[2] # m-xxxxx
-                        # Construct the URI for loading: .../artifacts
-                        # e.g. s3://bucket/11/models/m-xxxxx/artifacts
-                        model_uri = f"s3://{BUCKET_NAME}/{'/'.join(parts[:-1])}" 
+                    if len(parts) >= 4 and parts[2] != 'models':  # Avoid registered models folder
+                        run_id = parts[1]
+                        # Construct the URI: s3://bucket/11/<run_id>/final-model
+                        model_uri = f"s3://{BUCKET_NAME}/{'/'.join(parts[:-1])}"
                         
                         candidates.append({
-                            'name': model_name,
+                            'run_id': run_id,
                             'uri': model_uri,
                             'last_modified': obj['LastModified']
                         })
         
-        # Sort by LastModified descending
+        # Sort by LastModified descending and take top 3
         candidates.sort(key=lambda x: x['last_modified'], reverse=True)
-        
-        # Take top 3
         top_candidates = candidates[:3]
-        logger.info(f"Found {len(candidates)} models, loading top {len(top_candidates)}")
+        logger.info(f"Found {len(candidates)} final-model pipelines, loading top {len(top_candidates)}")
 
-        # Clear existing models if we want a fresh state (or update intelligently - here we just replace)
         new_loaded_models = {}
-        
-        # Tell MLflow how to connect to S3
-        os.environ["MLFLOW_S3_ENDPOINT_URL"] = MINIO_ENDPOINT
-        os.environ["AWS_ACCESS_KEY_ID"] = ACCESS_KEY
-        os.environ["AWS_SECRET_ACCESS_KEY"] = SECRET_KEY
 
         for cand in top_candidates:
-            model_name = cand['name']
+            run_id = cand['run_id']
             model_uri = cand['uri']
             try:
-                # Avoid reloading if already loaded? MLflow load might be cached or fast enough.
-                # But 'loaded_models' holds the object.
-                logger.info(f"Loading model {model_name} (modified: {cand['last_modified']})")
+                logger.info(f"Loading final-model from run {run_id} (modified: {cand['last_modified']})")
+                # Load the end-to-end pipeline
                 model = mlflow.sklearn.load_model(model_uri)
-                new_loaded_models[model_name] = model
+                # Use run_id as the model identifier (shows which training run produced it)
+                new_loaded_models[run_id] = model
+                logger.info(f"Successfully loaded final-model from {run_id}")
             except Exception as e:
-                logger.error(f"Failed to load model {model_name}: {e}")
+                logger.error(f"Failed to load final-model from {run_id}: {e}")
         
         loaded_models = new_loaded_models
-
-    except Exception as e:
-        logger.error(f"Error loading models: {e}")
-
-
-    # 2. Load Preprocessor
-    # We try to find 'artifacts/preprocessing' in similar locations or a fixed location
-    # Strategy: Look for 'preprocessing' artifact in the LATEST valid run in '11/' if possible,
-    # or just search for whre it is.
-    # User script: mlflow.sklearn.log_model(preprocessor, name="preprocessing")
-    # This usually places it at: 11/<run_id>/artifacts/preprocessing
-    
-    if not preprocessor:
-        logger.info("Searching for preprocessor in 11/")
-        try:
-             # Scan 11/ for 'artifacts/preprocessing/MLmodel'
-             # Since we don't know the exact run ID where preprocessing is strictly 'best',
-             # we will take the LATEST one we find in the entire experiment 11.
-             
-            paginator = s3_client.get_paginator('list_objects_v2')
-            # Limit scope? 11/ might have many runs.
-            # We hope it's not too huge.
-            pages = paginator.paginate(Bucket=BUCKET_NAME, Prefix="11/")
-            
-            prep_candidates = []
+        
+        if not loaded_models:
+            logger.warning("No final-model pipelines loaded. Falling back to individual models from 11/models/")
+            # Fallback: try loading old-style individual models
+            models_prefix = "11/models/"
+            pages = paginator.paginate(Bucket=BUCKET_NAME, Prefix=models_prefix)
+            fallback_candidates = []
             
             for page in pages:
                 if 'Contents' not in page:
                     continue
                 for obj in page['Contents']:
-                     if obj['Key'].endswith('artifacts/preprocessing/MLmodel'):
-                         parts = obj['Key'].split('/')
-                         # Expected: 11/<run_id>/artifacts/preprocessing/MLmodel
-                         if len(parts) >= 5:
-                             uri = f"s3://{BUCKET_NAME}/{'/'.join(parts[:-1])}"
-                             prep_candidates.append({
-                                 'uri': uri,
-                                 'last_modified': obj['LastModified']
-                             })
+                    key = obj['Key']
+                    if key.endswith('/artifacts/MLmodel'):
+                        parts = key.split('/')
+                        if len(parts) >= 5:
+                            model_name = parts[2]  # m-xxxxx
+                            model_uri = f"s3://{BUCKET_NAME}/{'/'.join(parts[:-1])}"
+                            fallback_candidates.append({
+                                'name': model_name,
+                                'uri': model_uri,
+                                'last_modified': obj['LastModified']
+                            })
+            
+            fallback_candidates.sort(key=lambda x: x['last_modified'], reverse=True)
+            for cand in fallback_candidates[:3]:
+                try:
+                    logger.info(f"Loading fallback model {cand['name']}")
+                    model = mlflow.sklearn.load_model(cand['uri'])
+                    new_loaded_models[cand['name']] = model
+                except Exception as e:
+                    logger.error(f"Failed to load fallback model {cand['name']}: {e}")
+            
+            loaded_models = new_loaded_models
 
-            if prep_candidates:
-                # usage latest
-                prep_candidates.sort(key=lambda x: x['last_modified'], reverse=True)
-                best_prep = prep_candidates[0]
-                logger.info(f"Loading preprocessor from {best_prep['uri']}")
-                preprocessor = mlflow.sklearn.load_model(best_prep['uri'])
-            else:
-                logger.warning("No preprocessor found in 11/")
-                
-        except Exception as e:
-            logger.error(f"Error loading preprocessor: {e}")
+    except Exception as e:
+        logger.error(f"Error loading models: {e}")
 
     last_loaded_time = time.time()
     logger.info("Resources reload complete.")
@@ -206,61 +176,33 @@ async def startup_event():
 
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(request: TweetRequest):
-    global loaded_models, preprocessor, last_loaded_time
+    global loaded_models, last_loaded_time
     
-    # Reload logic: "load automatically every few minutes or load once the user submits a tweet"
-    # To satisfy "load once the user submits", we should reload here.
-    # To avoid excessive S3 hits, maybe we debounce?
-    # But user asked for it. We will try to reload if it's been more than, say, 10 seconds?
-    # Or just always reload candidates list (fast) and only download (slow) if changed?
-    # For now, we'll reload resources if > 60 seconds have passed, OR if no models loaded.
-    # User said: "load once the user sumbmits a tweet".
-    # I will allow re-checking every time but maybe optimize later. 
-    # Let's do a short check interval.
-    
+    # Reload logic: check every 60 seconds or if models are missing
     if (time.time() - last_loaded_time > 60) or (not loaded_models):
         logger.info("Triggering reload on request")
         load_resources()
 
     if not loaded_models:
-         raise HTTPException(status_code=503, detail="No models loaded")
-         
-    if not preprocessor:
-        # Try one last time?
-        pass # We logged error already
-        # raise HTTPException(status_code=503, detail="Preprocessor not available")
-        # If we really can't find it, we will likely fail in transformation
+        raise HTTPException(status_code=503, detail="No models available. Ensure final-model pipelines exist in S3.")
 
     results = []
     
-    # Preprocess
-    try:
-        if preprocessor:
-            input_df = pd.DataFrame({'description': [request.text]})
-            # Transform
-            logger.info("Transforming input")
-            input_features = preprocessor.transform(input_df)
-        else:
-            # Fallback: Assume model might be a Pipeline expecting a DataFrame
-            logger.warning("No preprocessor loaded. Attempting to pass raw DataFrame to model.")
-            input_features = pd.DataFrame({'description': [request.text]})
-    except Exception as e:
-         logger.error(f"Preprocessing failed: {e}")
-         raise HTTPException(status_code=400, detail=f"Preprocessing failed: {str(e)}")
-    
     for name, model in loaded_models.items():
         try:
-            # Predict
-            pred = model.predict(input_features)[0]
+            # Models are end-to-end pipelines that handle preprocessing internally
+            # Pass raw text directly; the pipeline will preprocess and classify
+            logger.info(f"Predicting with model {name}")
+            pred = model.predict([request.text])[0]
             
-            # Confidence
+            # Get confidence if available
             confidence = 0.0
             if hasattr(model, "predict_proba"):
                 try:
-                    proba = model.predict_proba(input_features)
+                    proba = model.predict_proba([request.text])
                     confidence = float(max(proba[0]))
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Could not get probability for {name}: {e}")
 
             results.append(ModelPrediction(
                 model_name=name,
