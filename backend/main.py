@@ -8,6 +8,7 @@ import mlflow.sklearn
 import boto3
 from urllib.parse import urlparse
 import pandas as pd
+import numpy as np
 import sys
 import time
 
@@ -174,6 +175,31 @@ def load_resources():
 async def startup_event():
     load_resources()
 
+def preprocess_text(text: str) -> pd.DataFrame:
+    """
+    Preprocess raw text into feature vectors for fallback models.
+    Returns a DataFrame with 4 features:
+    - profanity features (3): profane_count, profane_ratio, has_profane
+    - punctuation_rate (1): ratio of punctuation to total characters
+    """
+    from preprocessing import ProfanityLexiconFeaturizer, punctuation_length_rate_transform
+    
+    # Start with raw text in a DataFrame
+    df = pd.DataFrame({"text": [text]})
+    
+    # Apply profanity featurizer (outputs 3 features)
+    profanity_featurizer = ProfanityLexiconFeaturizer()
+    profanity_features = profanity_featurizer.transform(df)
+    
+    # Apply punctuation rate transform (outputs 1 feature)
+    punct_features = punctuation_length_rate_transform(df)
+    
+    # Combine all features into one array
+    features = np.concatenate([profanity_features, punct_features], axis=1)
+    
+    # Return as DataFrame (with column names for clarity, though not required)
+    return pd.DataFrame(features, columns=["profane_count", "profane_ratio", "has_profane", "punctuation_rate"])
+
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(request: TweetRequest):
     global loaded_models, last_loaded_time
@@ -190,19 +216,36 @@ async def predict(request: TweetRequest):
     
     for name, model in loaded_models.items():
         try:
-            # Models are end-to-end pipelines that handle preprocessing internally
-            # Pass raw text directly; the pipeline will preprocess and classify
             logger.info(f"Predicting with model {name}")
-            pred = model.predict([request.text])[0]
+            
+            # Determine if this is an end-to-end pipeline with preprocessing or just a classifier
+            # Final-models have a 'preprocessing' step in the pipeline
+            is_final_model = (
+                hasattr(model, 'named_steps') and 
+                'preprocessing' in model.named_steps
+            )
+            
+            if is_final_model:
+                # End-to-end pipeline: pass raw text directly
+                logger.debug(f"Model {name} is a final-model pipeline, passing raw text")
+                pred = model.predict([request.text])[0]
+            else:
+                # Fallback model (individual classifier): preprocess first
+                logger.debug(f"Model {name} is a fallback classifier, preprocessing text")
+                features_df = preprocess_text(request.text)
+                pred = model.predict(features_df)[0]
             
             # Get confidence if available
             confidence = 0.0
-            if hasattr(model, "predict_proba"):
-                try:
+            try:
+                if is_final_model:
                     proba = model.predict_proba([request.text])
-                    confidence = float(max(proba[0]))
-                except Exception as e:
-                    logger.debug(f"Could not get probability for {name}: {e}")
+                else:
+                    features_df = preprocess_text(request.text)
+                    proba = model.predict_proba(features_df)
+                confidence = float(max(proba[0]))
+            except Exception as e:
+                logger.debug(f"Could not get probability for {name}: {e}")
 
             results.append(ModelPrediction(
                 model_name=name,
@@ -210,7 +253,7 @@ async def predict(request: TweetRequest):
                 confidence=confidence
             ))
         except Exception as e:
-            logger.error(f"Prediction error with model {name}: {e}")
+            logger.error(f"Prediction error with model {name}: {e}", exc_info=True)
             results.append(ModelPrediction(
                 model_name=name,
                 prediction="Error",
