@@ -241,8 +241,9 @@ async def predict(request: TweetRequest):
             logger.info("Transforming input")
             input_features = preprocessor.transform(input_df)
         else:
-            # Fallback (will likely fail for Sklearn models expecting features)
-            input_features = [request.text]
+            # Fallback: Assume model might be a Pipeline expecting a DataFrame
+            logger.warning("No preprocessor loaded. Attempting to pass raw DataFrame to model.")
+            input_features = pd.DataFrame({'description': [request.text]})
     except Exception as e:
          logger.error(f"Preprocessing failed: {e}")
          raise HTTPException(status_code=400, detail=f"Preprocessing failed: {str(e)}")
