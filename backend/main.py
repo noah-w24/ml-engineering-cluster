@@ -4,23 +4,17 @@ from typing import List, Dict, Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import mlflow.sklearn
-import boto3
-from urllib.parse import urlparse
+import mlflow
 import pandas as pd
 import numpy as np
-import sys
 import time
-
-# Import custom preprocessing classes and perform hack for pickle compatibility
-import preprocessing
-sys.modules['preprocessing'] = preprocessing
-# Also expose classes in main scope just in case
-from preprocessing import (
-    normalize_tweet,
-    punctuation_length_rate_transform,
-    ProfanityLexiconFeaturizer
-)
+import re
+import string
+from sklearn.base import BaseEstimator, TransformerMixin
+import tqdm
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import FunctionTransformer
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -37,20 +31,6 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-# Configuration from Environment Variables
-MINIO_ENDPOINT = os.getenv("MLFLOW_S3_ENDPOINT_URL", "http://minio:9000")
-ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
-SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-BUCKET_NAME = "mlflow-artifacts"
-
-# Initialize S3 Client
-s3_client = boto3.client(
-    "s3",
-    endpoint_url=MINIO_ENDPOINT,
-    aws_access_key_id=ACCESS_KEY,
-    aws_secret_access_key=SECRET_KEY,
-)
-
 class TweetRequest(BaseModel):
     text: str
 
@@ -63,125 +43,24 @@ class PredictionResponse(BaseModel):
     predictions: List[ModelPrediction]
 
 loaded_models = {}
+preprocessor = None
 last_loaded_time = 0
 RELOAD_INTERVAL = 300  # Default 5 minutes, but logic will check on request
 
 def load_resources():
     """
     Loads end-to-end model pipelines from S3.
-    Each pipeline includes preprocessing + classifier, so raw text can be passed directly.
-    Looks for 'final-model' artifacts in the latest experiment runs.
+    Also loads the fitted preprocessor.
     """
-    global loaded_models, last_loaded_time
+    global loaded_models, preprocessor, last_loaded_time
     
     logger.info("Looking for final-model pipelines in experiment 11/")
-
     try:
-        # Tell MLflow how to connect to S3
-        os.environ["MLFLOW_S3_ENDPOINT_URL"] = MINIO_ENDPOINT
-        os.environ["AWS_ACCESS_KEY_ID"] = ACCESS_KEY
-        os.environ["AWS_SECRET_ACCESS_KEY"] = SECRET_KEY
-        
-        # Scan for 'final-model/MLmodel' artifacts in all runs under experiment 11/
-        paginator = s3_client.get_paginator('list_objects_v2')
-        pages = paginator.paginate(Bucket=BUCKET_NAME, Prefix="11/")
-        
-        candidates = []
-        
-        for page in pages:
-            if 'Contents' not in page:
-                continue
-            
-            for obj in page['Contents']:
-                key = obj['Key']
-                # Look for final-model artifacts: 11/<run_id>/final-model/MLmodel
-                if 'final-model' in key and key.endswith('/MLmodel'):
-                    # Extract run_id: 11/<run_id>/final-model/MLmodel
-                    parts = key.split('/')
-                    if len(parts) >= 4 and parts[2] != 'models':  # Avoid registered models folder
-                        run_id = parts[1]
-                        # Construct the URI: s3://bucket/11/<run_id>/final-model
-                        model_uri = f"s3://{BUCKET_NAME}/{'/'.join(parts[:-1])}"
-                        
-                        candidates.append({
-                            'run_id': run_id,
-                            'uri': model_uri,
-                            'last_modified': obj['LastModified']
-                        })
-        
-        # Sort by LastModified descending and take top 3
-        candidates.sort(key=lambda x: x['last_modified'], reverse=True)
-        top_candidates = candidates[:3]
-        logger.info(f"Found {len(candidates)} final-model pipelines, loading top {len(top_candidates)}")
-
-        new_loaded_models = {}
-
-        for cand in top_candidates:
-            run_id = cand['run_id']
-            model_uri = cand['uri']
-            try:
-                logger.info(f"Loading final-model from run {run_id} (modified: {cand['last_modified']})")
-                # Load the end-to-end pipeline
-                model = mlflow.sklearn.load_model(model_uri)
-                # Use run_id as the model identifier (shows which training run produced it)
-                new_loaded_models[run_id] = model
-                logger.info(f"Successfully loaded final-model from {run_id}")
-            except Exception as e:
-                logger.error(f"Failed to load final-model from {run_id}: {e}")
-        
-        loaded_models = new_loaded_models
-        
-        if not loaded_models:
-            logger.warning("No final-model pipelines loaded. Falling back to individual models from 11/models/")
-            # Fallback: try loading old-style individual models
-            models_prefix = "11/models/"
-            pages = paginator.paginate(Bucket=BUCKET_NAME, Prefix=models_prefix)
-            fallback_candidates = []
-            
-            for page in pages:
-                if 'Contents' not in page:
-                    continue
-                for obj in page['Contents']:
-                    key = obj['Key']
-                    if key.endswith('/artifacts/MLmodel'):
-                        parts = key.split('/')
-                        if len(parts) >= 5:
-                            model_name = parts[2]  # m-xxxxx
-                            model_uri = f"s3://{BUCKET_NAME}/{'/'.join(parts[:-1])}"
-                            fallback_candidates.append({
-                                'name': model_name,
-                                'uri': model_uri,
-                                'last_modified': obj['LastModified']
-                            })
-            
-            fallback_candidates.sort(key=lambda x: x['last_modified'], reverse=True)
-            for cand in fallback_candidates[:3]:
-                try:
-                    logger.info(f"Loading fallback model {cand['name']}")
-                    model = mlflow.sklearn.load_model(cand['uri'])
-                    
-                    # Validate that the model is fitted by trying a dummy prediction
-                    try:
-                        # Try to check if model is fitted
-                        from sklearn.utils.validation import check_is_fitted
-                        if hasattr(model, 'named_steps'):
-                            # Check the last step of the pipeline
-                            check_is_fitted(list(model.named_steps.values())[-1])
-                        elif hasattr(model, 'base_model'):
-                            # For ThresholdedModel, check the base_model
-                            check_is_fitted(model.base_model)
-                        else:
-                            check_is_fitted(model)
-                        
-                        new_loaded_models[cand['name']] = model
-                        logger.info(f"Successfully loaded and validated fallback model {cand['name']}")
-                    except Exception as fit_err:
-                        logger.warning(f"Model {cand['name']} loaded but not fitted, skipping: {fit_err}")
-                except Exception as e:
-                    logger.error(f"Failed to load fallback model {cand['name']}: {e}")
-            
-            loaded_models = new_loaded_models
-
+        mlflow.set_tracking_uri("http://mlflow.mlops.svc.cluster.local:5000")
+        preprocessor = mlflow.sklearn.load_model("s3://mlflow-artifacts/11/models/m-bfb9b230e0cc4e53b08d6b65fa8170de/artifacts")
+        loaded_models["LogReg_balanced"]=mlflow.sklearn.load_model("s3://mlflow-artifacts/11/models/m-730ac1ef738a45488e5432682eb137e0/artifacts")
+        loaded_models["RF_balanced"]=mlflow.sklearn.load_model("s3://mlflow-artifacts/11/models/m-9d4e688d042746c89450ad7e34fffff7/artifacts")
+        loaded_models["HistGB"]=mlflow.sklearn.load_model("s3://mlflow-artifacts/11/models/m-37eb9fcd8c8c4b269c4bbae8bf2b48d7/artifacts")
     except Exception as e:
         logger.error(f"Error loading models: {e}")
 
@@ -192,41 +71,128 @@ def load_resources():
 async def startup_event():
     load_resources()
 
-def preprocess_text(text: str) -> np.ndarray:
+def _split_camel_case(token: str) -> str:
+    token = re.sub(r"([a-z])([A-Z])", r"\1 \2", token)
+    token = re.sub(r"([A-Za-z])(\d)", r"\1 \2", token)
+    token = re.sub(r"(\d)([A-Za-z])", r"\1 \2", token)
+    token = token.replace("_", " ")
+    return token
+
+
+def normalize_tweet(text: str) -> str:
+    if text is None or (isinstance(text, float) and np.isnan(text)):
+        return ""
+
+    text = str(text)
+    text = _URL_RE.sub(" HTTPURL ", text)
+    text = _USER_RE.sub(" @USER ", text)
+
+    def _hashtag_repl(m: re.Match) -> str:
+        tag = m.group(1)
+        tag = _split_camel_case(tag)
+        return f" {tag} "
+
+    text = _HASHTAG_RE.sub(_hashtag_repl, text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def normalize_for_lexicon(text: str) -> str:
+    t = normalize_tweet(text)
+    t = t.lower().translate(_LEET_MAP)
+    t = re.sub(r"(?<=\w)[^\w\s]+(?=\w)", "", t)
+    return t
+
+
+class ProfanityLexiconFeaturizer(BaseEstimator, TransformerMixin):
     """
-    Preprocess raw text into feature vectors for fallback models.
-    Returns a numpy array with 4 features:
-    - profanity features (3): profane_count, profane_ratio, has_profane
-    - punctuation_rate (1): ratio of punctuation to total characters
+    Outputs 3 numeric features:
+      - profane_count
+      - profane_ratio
+      - has_profane
     """
+    def __init__(self, lexicon=None, show_progress: bool = True):
+        self.lexicon = lexicon or GER_PROFANITY
+        self.show_progress = show_progress
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        s = X.iloc[:, 0] if isinstance(X, pd.DataFrame) else pd.Series(np.asarray(X).ravel())
+        out = np.zeros((len(s), 3), dtype=np.float32)
+
+        it = enumerate(s)
+        if self.show_progress and len(s) >= 5000:
+            it = tqdm(it, total=len(s), desc="lexicon features", unit="row", leave=False)
+
+        for i, txt in it:
+            t = normalize_for_lexicon(txt)
+            tokens = _WORD_RE.findall(t)
+            if not tokens:
+                continue
+            hits = sum(1 for w in tokens if w in self.lexicon)
+            out[i, 0] = hits
+            out[i, 1] = hits / max(len(tokens), 1)
+            out[i, 2] = 1.0 if hits > 0 else 0.0
+
+        return out
+
+
+_PUNCT_SET = set(string.punctuation)
+
+
+def punctuation_length_rate(text: str) -> float:
+    t = normalize_tweet(text)
+    if not t:
+        return 0.0
+    punct = sum(1 for ch in t if ch in _PUNCT_SET)
+    return punct / max(len(t), 1)
+
+
+def punctuation_length_rate_transform(X):
+    s = X.iloc[:, 0] if isinstance(X, pd.DataFrame) else pd.Series(np.asarray(X).ravel())
+    return s.apply(punctuation_length_rate).astype("float32").to_numpy().reshape(-1, 1)
+
+
+def _log_stage(msg: str):
+    print(f"\n=== {msg} ===", flush=True)
+
+GER_PROFANITY = {
+    "schlagen", "erschlagen", "töten", "ermorden", "verprügeln", "boxen",
+    "kämpfen", "angreifen", "treten", "morden", "prügeln", "hauen",
+}
+_LEET_MAP = str.maketrans({
+    "@": "a", "4": "a",
+    "1": "i", "!": "i",
+    "0": "o",
+    "$": "s", "5": "s",
+    "3": "e",
+})
+
+_WORD_RE = re.compile(r"\b\w+\b", flags=re.UNICODE)
+
+_URL_RE = re.compile(r"(https?://\S+|www\.\S+)", flags=re.IGNORECASE)
+_USER_RE = re.compile(r"@\w+")
+_HASHTAG_RE = re.compile(r"#(\w+)")
+
+def preprocess_text(text: str):
+    global preprocessor
+    if preprocessor is None:
+        logger.warning("Preprocessor is not loaded! Falling back to raw text (likely to fail if model expects features).")
+        raise HTTPException(status_code=503, detail="Preprocessor not initialized. Check MLflow connection and model URIs.")
+
+    df = pd.DataFrame({
+        "description": [text],
+    })
+
     try:
-        logger.info(f"preprocess_text called")
-        
-        # Import preprocessing functions
-        from preprocessing import normalize_for_lexicon, normalize_tweet, GER_PROFANITY, _WORD_RE, _PUNCT_SET
-        import string
-        
-        # Feature 1-3: Profanity features
-        normalized = normalize_for_lexicon(text)
-        tokens = _WORD_RE.findall(normalized)
-        hits = sum(1 for w in tokens if w in GER_PROFANITY)
-        
-        profane_count = float(hits)
-        profane_ratio = hits / max(len(tokens), 1) if tokens else 0.0
-        has_profane = 1.0 if hits > 0 else 0.0
-        
-        # Feature 4: Punctuation rate
-        normalized_text = normalize_tweet(text)
-        punct_count = sum(1 for ch in normalized_text if ch in _PUNCT_SET)
-        punctuation_rate = punct_count / max(len(normalized_text), 1) if normalized_text else 0.0
-        
-        # Return as 2D numpy array (1 row, 4 columns)
-        features = np.array([[profane_count, profane_ratio, has_profane, punctuation_rate]], dtype=np.float32)
-        logger.info(f"Preprocessing complete: {features.shape}")
-        return features
+        features = preprocessor.transform(df)
     except Exception as e:
-        logger.error(f"FATAL ERROR in preprocess_text: {type(e).__name__}: {str(e)}", exc_info=True)
-        raise
+        logger.error(f"Preprocessing transform failed. Input: '{text[:50]}...'. Error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Preprocessing error: {str(e)}")
+    
+    return features
 
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(request: TweetRequest):
@@ -245,55 +211,22 @@ async def predict(request: TweetRequest):
     for name, model in loaded_models.items():
         try:
             logger.info(f"Predicting with model {name}")
+            features = preprocess_text(request.text)
             
-            # Debug: log model type and attributes
-            logger.info(f"Model type: {type(model)}, has named_steps: {hasattr(model, 'named_steps')}, has base_model: {hasattr(model, 'base_model')}")
-            if hasattr(model, 'named_steps'):
-                logger.info(f"Named steps: {list(model.named_steps.keys())}")
+            # HistGradientBoostingClassifier does not support sparse input
+            if "HistGB" in name and hasattr(features, "toarray"):
+                features = features.toarray()
             
-            # Determine if this is an end-to-end pipeline with preprocessing
-            # Final-models are Pipelines with a 'preprocessing' step
-            # Fallback models are either ThresholdedModel wrappers or raw classifiers
-            is_final_model = False
+            print(f"LENGTH OF REQUEST: {features.shape}")
+            pred = model.predict(features)[0]
             
-            # Check if it's a Pipeline with 'preprocessing' step
-            if hasattr(model, 'named_steps') and 'preprocessing' in model.named_steps:
-                is_final_model = True
-                logger.info(f"Detected as final-model: has preprocessing step")
-            # Also check if it has a base_model attribute (ThresholdedModel wrapper)
-            elif hasattr(model, 'base_model'):
-                base = model.base_model
-                logger.info(f"Has base_model, checking base: {type(base)}, has named_steps: {hasattr(base, 'named_steps')}")
-                if hasattr(base, 'named_steps'):
-                    logger.info(f"Base named steps: {list(base.named_steps.keys())}")
-                    if 'preprocessing' in base.named_steps:
-                        is_final_model = True
-                        logger.info(f"Detected as final-model: base has preprocessing step")
-            
-            if not is_final_model:
-                logger.info(f"Detected as fallback model: will preprocess text")
-            
-            if is_final_model:
-                # End-to-end pipeline: pass raw text directly
-                logger.debug(f"Model {name} is a final-model pipeline, passing raw text")
-                pred = model.predict([request.text])[0]
-            else:
-                # Fallback model (individual classifier): preprocess first
-                logger.debug(f"Model {name} is a fallback classifier, preprocessing text")
-                features_df = preprocess_text(request.text)
-                pred = model.predict(features_df)[0]
-            
-            # Get confidence if available
             confidence = 0.0
-            try:
-                if is_final_model:
-                    proba = model.predict_proba([request.text])
-                else:
-                    features_df = preprocess_text(request.text)
-                    proba = model.predict_proba(features_df)
-                confidence = float(max(proba[0]))
-            except Exception as e:
-                logger.debug(f"Could not get probability for {name}: {e}")
+            if hasattr(model, "predict_proba"):
+                try:
+                    proba = model.predict_proba(features)
+                    confidence = float(max(proba[0]))
+                except Exception as e:
+                    logger.warning(f"Could not get probability for {name}: {e}")
 
             results.append(ModelPrediction(
                 model_name=name,

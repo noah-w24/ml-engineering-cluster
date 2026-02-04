@@ -1,4 +1,4 @@
-FROM python:3.14-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -6,7 +6,6 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY main.py .
-COPY preprocessing.py .
 
 # Expose the port
 EXPOSE 8000
