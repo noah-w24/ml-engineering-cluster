@@ -1,4 +1,4 @@
-fastapi==0.140.9
+fastapi==0.140.13
 uvicorn==0.51.0
 boto3==1.43.58
 mlflow==3.14.0
