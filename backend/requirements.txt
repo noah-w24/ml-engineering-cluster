@@ -3,7 +3,7 @@ uvicorn==0.52.1
 boto3==1.43.69
 mlflow==3.15.1
 scikit-learn==1.9.0
-pandas==2.3.3 #2.3.3
+pandas==3.0.5 #2.3.3
 python-multipart
 tqdm
 numpy
